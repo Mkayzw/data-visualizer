@@ -1,0 +1,53 @@
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+h1 {
+    text-align: center;
+    color: #333;
+}
+
+#chart-container {
+    position: relative;
+    width: 100%;
+    height: 500px;
+}
+
+.bar {
+    fill: hsl(var(--primary));
+    transition: all 0.3s ease;
+}
+
+.bar:hover {
+    fill: hsl(var(--primary-foreground));
+}
+
+.tooltip {
+    position: absolute;
+    padding: 0.75rem;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+.axis-label {
+    font-size: 0.875rem;
+    fill: hsl(var(--foreground));
+}
+
+.axis path,
+.axis line {
+    stroke: hsl(var(--border));
+}
+
+.axis text {
+    fill: hsl(var(--foreground));
+} 
