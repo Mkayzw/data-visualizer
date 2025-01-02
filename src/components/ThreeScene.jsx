@@ -1,130 +1,315 @@
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Text } from '@react-three/drei';
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { useSpring, animated } from '@react-spring/three';
 
-function DataLabel({ position, value }) {
+// Interactive Node component with animations
+function Node({ position, value, isActive, isHighlighted, isComparing, type = 'default', onClick }) {
+  const [hovered, setHovered] = useState(false);
+  const meshRef = useRef();
+  
+  // Animation springs
+  const { scale, color } = useSpring({
+    scale: hovered ? 1.2 : 1,
+    color: isActive ? '#ff4444' : 
+           isHighlighted ? '#44ff44' : 
+           isComparing ? '#ffff44' : 
+           hovered ? '#66aaff' : '#4444ff',
+    config: { tension: 150, friction: 10 }
+  });
+
+  const nodeGeometry = type === 'array' ? 
+    <boxGeometry args={[1, 1, 1]} /> :
+    <sphereGeometry args={[0.5, 32, 32]} />;
+
   return (
-    <Text
-      position={[position[0], position[1] + 0.5, position[2]]}
-      fontSize={0.5}
-      color="white"
-      anchorX="center"
-      anchorY="bottom"
-    >
-      {value.toLocaleString('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-      })}
-    </Text>
+    <animated.group position={position} scale={scale}>
+      <animated.mesh
+        ref={meshRef}
+        onPointerOver={() => setHovered(true)}
+        onPointerOut={() => setHovered(false)}
+        onClick={onClick}
+      >
+        {nodeGeometry}
+        <animated.meshStandardMaterial 
+          color={color}
+          metalness={0.5}
+          roughness={0.5}
+        />
+      </animated.mesh>
+      <Text
+        position={[0, 0.8, 0]}
+        fontSize={0.4}
+        color="white"
+        anchorX="center"
+        anchorY="bottom"
+      >
+        {value}
+      </Text>
+    </animated.group>
   );
 }
 
-function DataPoints({ data, type }) {
+// Animated Edge component
+function Edge({ start, end, isHighlighted, isDirected = false }) {
+  const { color } = useSpring({
+    color: isHighlighted ? '#44ff44' : '#666666',
+    config: { tension: 150, friction: 10 }
+  });
+
   const points = useMemo(() => {
-    const maxValue = Math.max(...data.map(d => d.value));
-    const minValue = Math.min(...data.map(d => d.value));
-    const range = maxValue - minValue;
+    const startVec = new THREE.Vector3(...start);
+    const endVec = new THREE.Vector3(...end);
+    const points = [startVec, endVec];
     
-    return data.map((point, index) => {
-      const x = (index - data.length / 2) * 2;
-      const y = 2 + ((point.value - minValue) / range) * 8;
-      const z = 0;
-      return { 
-        position: [x, y, z], 
-        value: point.value,
-        timestamp: new Date(point.timestamp).toLocaleTimeString()
-      };
-    });
-  }, [data]);
+    if (isDirected) {
+      const direction = endVec.clone().sub(startVec).normalize();
+      const arrowLength = 0.3;
+      const arrowPosition = endVec.clone().sub(direction.multiplyScalar(arrowLength));
+      points.push(arrowPosition);
+    }
+    
+    return points;
+  }, [start, end, isDirected]);
 
-  if (type === 'bars') {
-    return (
-      <group>
-        {points.map((point, i) => (
-          <group key={i}>
-            <mesh position={point.position}>
-              <boxGeometry args={[1.5, point.position[1], 1]} />
-              <meshStandardMaterial 
-                color={new THREE.Color().setHSL(0.33, 0.8, 0.5)} 
-                transparent
-                opacity={0.8}
-              />
-            </mesh>
-            <DataLabel position={point.position} value={point.value} />
-            <Text
-              position={[point.position[0], -0.5, point.position[2]]}
-              fontSize={0.4}
-              color="white"
-              anchorX="center"
-              anchorY="top"
-              rotation={[-Math.PI / 4, 0, 0]}
-            >
-              {point.timestamp}
-            </Text>
-          </group>
-        ))}
-      </group>
-    );
-  }
-
-  if (type === 'points') {
-    return (
-      <group>
-        <points>
-          <bufferGeometry>
-            <bufferAttribute
-              attachObject={['attributes', 'position']}
-              count={points.length}
-              array={new Float32Array(points.flatMap(p => p.position))}
-              itemSize={3}
-            />
-          </bufferGeometry>
-          <pointsMaterial size={0.5} color="#4CAF50" />
-        </points>
-        {points.map((point, i) => (
-          <DataLabel key={i} position={point.position} value={point.value} />
-        ))}
-      </group>
-    );
-  }
-
-  return null;
+  return (
+    <line>
+      <bufferGeometry>
+        <bufferAttribute
+          attach="attributes-position"
+          count={points.length}
+          array={new Float32Array(points.flatMap(p => [p.x, p.y, p.z]))}
+          itemSize={3}
+        />
+      </bufferGeometry>
+      <lineBasicMaterial color={color} />
+    </line>
+  );
 }
 
-function ThreeScene({ data, type }) {
-  const maxValue = Math.max(...data.map(d => d.value));
+// LinkedList visualization
+function LinkedListStructure({ data, visualState, onNodeClick }) {
+  const elements = useMemo(() => {
+    return data.map((value, index) => {
+      const position = [index * 3 - (data.length - 1) * 1.5, 0, 0];
+      return {
+        position,
+        value,
+        isActive: visualState.activeNodes.includes(index),
+        isHighlighted: visualState.highlightedNodes.includes(index),
+        next: index < data.length - 1 ? index + 1 : null
+      };
+    });
+  }, [data, visualState]);
+
+  return (
+    <group>
+      {elements.map((element, index) => (
+        <group key={index}>
+          <Node 
+            {...element} 
+            onClick={() => onNodeClick?.(index)}
+          />
+          {element.next !== null && (
+            <Edge 
+              start={element.position}
+              end={elements[element.next].position}
+              isDirected={true}
+              isHighlighted={visualState.highlightedNodes.includes(index)}
+            />
+          )}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// Binary Tree visualization
+function TreeStructure({ data, visualState }) {
+  const elements = useMemo(() => {
+    return data.map((value, index) => {
+      const level = Math.floor(Math.log2(index + 1));
+      const position = [
+        (index - Math.pow(2, level) + 1) * 3,
+        -level * 2,
+        0
+      ];
+      return {
+        position,
+        value,
+        isActive: visualState.activeNodes.includes(index),
+        isHighlighted: visualState.highlightedNodes.includes(index),
+        leftChild: 2 * index + 1 < data.length ? 2 * index + 1 : null,
+        rightChild: 2 * index + 2 < data.length ? 2 * index + 2 : null
+      };
+    });
+  }, [data, visualState]);
+
+  return (
+    <group position={[0, 4, 0]}>
+      {elements.map((element, index) => (
+        <group key={index}>
+          <Node {...element} />
+          {element.leftChild !== null && (
+            <Edge 
+              start={element.position}
+              end={elements[element.leftChild].position}
+              isHighlighted={visualState.highlightedNodes.includes(index)}
+            />
+          )}
+          {element.rightChild !== null && (
+            <Edge 
+              start={element.position}
+              end={elements[element.rightChild].position}
+              isHighlighted={visualState.highlightedNodes.includes(index)}
+            />
+          )}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// Graph visualization
+function GraphStructure({ data, visualState }) {
+  const elements = useMemo(() => {
+    return data.map((node, index) => {
+      const angle = (index / data.length) * Math.PI * 2;
+      const radius = 4;
+      const position = [
+        Math.cos(angle) * radius,
+        Math.sin(angle) * radius,
+        0
+      ];
+      return {
+        position,
+        value: node.value,
+        isActive: visualState.activeNodes.includes(index),
+        isHighlighted: visualState.highlightedNodes.includes(index),
+        connections: node.connections || []
+      };
+    });
+  }, [data, visualState]);
+
+  return (
+    <group>
+      {elements.map((element, index) => (
+        <group key={index}>
+          <Node {...element} />
+          {element.connections.map((targetIndex, i) => (
+            <Edge 
+              key={`${index}-${targetIndex}-${i}`}
+              start={element.position}
+              end={elements[targetIndex].position}
+              isDirected={true}
+              isHighlighted={
+                visualState.highlightedNodes.includes(index) && 
+                visualState.highlightedNodes.includes(targetIndex)
+              }
+            />
+          ))}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// Main ThreeScene component
+function ThreeScene({ 
+  structureType, 
+  data, 
+  visualState,
+  onNodeClick 
+}) {
+  // Camera settings
+  const cameraSettings = useMemo(() => {
+    switch (structureType) {
+      case 'array':
+        return { position: [0, 5, 10], fov: 50 };
+      case 'linkedList':
+        return { position: [0, 5, 15], fov: 50 };
+      case 'tree':
+        return { position: [0, 5, 20], fov: 60 };
+      case 'graph':
+        return { position: [0, 0, 15], fov: 50 };
+      default:
+        return { position: [0, 5, 10], fov: 50 };
+    }
+  }, [structureType]);
+
+  // Structure selection
+  const StructureComponent = useMemo(() => {
+    switch (structureType) {
+      case 'array':
+        return (
+          <group position={[-(data.length - 1) * 1.5, 0, 0]}>
+            {data.map((value, index) => (
+              <Node
+                key={index}
+                position={[index * 3, 0, 0]}
+                value={value}
+                type="array"
+                isActive={visualState.activeNodes.includes(index)}
+                isHighlighted={visualState.highlightedNodes.includes(index)}
+                isComparing={visualState.comparisons.includes(index)}
+                onClick={() => onNodeClick?.(index)}
+              />
+            ))}
+          </group>
+        );
+      case 'linkedList':
+        return (
+          <LinkedListStructure
+            data={data}
+            visualState={visualState}
+            onNodeClick={onNodeClick}
+          />
+        );
+      case 'tree':
+        return (
+          <TreeStructure
+            data={data}
+            visualState={visualState}
+          />
+        );
+      case 'graph':
+        return (
+          <GraphStructure
+            data={data}
+            visualState={visualState}
+          />
+        );
+      default:
+        return null;
+    }
+  }, [structureType, data, visualState, onNodeClick]);
 
   return (
     <Canvas
-      camera={{ position: [-5, 15, 25], fov: 60 }}
-      style={{ height: '600px' }}
+      camera={{
+        ...cameraSettings,
+        near: 0.1,
+        far: 1000,
+      }}
+      style={{ background: '#1a1a1a', height: '100%' }}
     >
-      <ambientLight intensity={0.6} />
+      <ambientLight intensity={0.5} />
       <pointLight position={[10, 10, 10]} intensity={0.8} />
-      <DataPoints data={data} type={type} />
-      <OrbitControls 
-        minPolarAngle={0} 
-        maxPolarAngle={Math.PI / 2.1}
-        enableZoom={true}
+      <pointLight position={[-10, -10, -10]} intensity={0.5} />
+      
+      <OrbitControls
         enablePan={true}
+        enableZoom={true}
+        enableRotate={true}
+        minDistance={5}
+        maxDistance={50}
       />
-      <gridHelper 
-        args={[40, 20, '#666666', '#444444']} 
-        position={[0, 0, 0]} 
-      />
-      {[0, 1, 2, 3, 4].map((i) => (
-        <Text
-          key={i}
-          position={[-10, i * 5, 0]}
-          fontSize={0.8}
-          color="white"
-        >
-          ${(maxValue * (i / 4)).toLocaleString()}
-        </Text>
-      ))}
+      
+      {StructureComponent}
+      
+      <gridHelper args={[20, 20, '#444444', '#222222']} />
+      <axesHelper args={[5]} />
     </Canvas>
   );
 }

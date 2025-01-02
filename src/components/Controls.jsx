@@ -1,60 +1,100 @@
-import { RadioGroup } from '@headlessui/react';
+import { useState } from 'react';
 
-function Controls({ visualizationType, setVisualizationType, timeRange, setTimeRange }) {
-  const visualizationTypes = [
-    { id: 'bars', name: '3D Bars' },
-    { id: 'points', name: 'Point Cloud' },
-  ];
+const algorithmOptions = {
+  array: ['bubbleSort', 'quickSort', 'binarySearch'],
+  linkedList: ['traverse', 'reverse', 'findMiddle'],
+  tree: ['inorder', 'preorder', 'postorder'],
+  graph: ['bfs', 'dfs', 'dijkstra']
+};
 
-  const timeRanges = [
-    { id: '1d', name: '1 Day' },
-    { id: '7d', name: '1 Week' },
-    { id: '30d', name: '1 Month' },
-  ];
+function Controls({
+  structureType,
+  setStructureType,
+  data,
+  onDataInput,
+  algorithm,
+  onAlgorithmSelect,
+  isRunning,
+  setIsRunning
+}) {
+  const [inputValue, setInputValue] = useState('');
+
+  const handleInputChange = (e) => {
+    setInputValue(e.target.value);
+    onDataInput(e.target.value);
+  };
 
   return (
-    <div className="bg-gray-800 p-6 rounded-lg mb-6">
-      <h2 className="text-xl font-semibold mb-4">Visualization Controls</h2>
-      
-      <div className="space-y-6">
-        <div>
-          <label className="text-sm font-medium text-gray-400">Type</label>
-          <RadioGroup value={visualizationType} onChange={setVisualizationType}>
-            <div className="mt-2 space-y-2">
-              {visualizationTypes.map((type) => (
-                <RadioGroup.Option
-                  key={type.id}
-                  value={type.id}
-                  className={({ checked }) =>
-                    `${checked ? 'bg-blue-600' : 'bg-gray-700'}
-                    relative rounded-lg px-4 py-2 cursor-pointer transition-colors`
-                  }
-                >
-                  {type.name}
-                </RadioGroup.Option>
-              ))}
-            </div>
-          </RadioGroup>
-        </div>
+    <div className="bg-gray-800 p-6 rounded-lg space-y-6">
+      {/* Structure Type Selection */}
+      <div>
+        <label className="block text-sm font-medium mb-2">Structure Type</label>
+        <select
+          value={structureType}
+          onChange={(e) => setStructureType(e.target.value)}
+          className="w-full bg-gray-700 rounded-md px-3 py-2 text-white"
+        >
+          <option value="array">Array</option>
+          <option value="linkedList">Linked List</option>
+          <option value="tree">Binary Tree</option>
+          <option value="graph">Graph</option>
+        </select>
+      </div>
 
-        <div>
-          <label className="text-sm font-medium text-gray-400">Time Range</label>
-          <RadioGroup value={timeRange} onChange={setTimeRange}>
-            <div className="mt-2 space-y-2">
-              {timeRanges.map((range) => (
-                <RadioGroup.Option
-                  key={range.id}
-                  value={range.id}
-                  className={({ checked }) =>
-                    `${checked ? 'bg-blue-600' : 'bg-gray-700'}
-                    relative rounded-lg px-4 py-2 cursor-pointer transition-colors`
-                  }
-                >
-                  {range.name}
-                </RadioGroup.Option>
-              ))}
-            </div>
-          </RadioGroup>
+      {/* Data Input */}
+      <div>
+        <label className="block text-sm font-medium mb-2">Input Data</label>
+        <input
+          type="text"
+          value={inputValue}
+          onChange={handleInputChange}
+          placeholder="Enter comma-separated values"
+          className="w-full bg-gray-700 rounded-md px-3 py-2 text-white"
+        />
+        <p className="text-xs text-gray-400 mt-1">
+          Example: {structureType === 'array' || structureType === 'linkedList' 
+            ? '1, 2, 3, 4, 5' 
+            : structureType === 'tree' 
+              ? '1, 2, 3, null, 4' 
+              : '{"nodes": [1,2,3], "edges": [[0,1],[1,2]]}'}
+        </p>
+      </div>
+
+      {/* Algorithm Selection */}
+      <div>
+        <label className="block text-sm font-medium mb-2">Algorithm</label>
+        <select
+          value={algorithm || ''}
+          onChange={(e) => onAlgorithmSelect(e.target.value)}
+          className="w-full bg-gray-700 rounded-md px-3 py-2 text-white"
+        >
+          <option value="">Select Algorithm</option>
+          {algorithmOptions[structureType]?.map((algo) => (
+            <option key={algo} value={algo}>
+              {algo.charAt(0).toUpperCase() + algo.slice(1)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Run Button */}
+      <button
+        onClick={() => setIsRunning(!isRunning)}
+        disabled={!algorithm}
+        className={`w-full py-2 px-4 rounded-md ${
+          algorithm
+            ? 'bg-blue-600 hover:bg-blue-700'
+            : 'bg-gray-600 cursor-not-allowed'
+        }`}
+      >
+        {isRunning ? 'Stop' : 'Run Algorithm'}
+      </button>
+
+      {/* Current Data Display */}
+      <div>
+        <label className="block text-sm font-medium mb-2">Current Data</label>
+        <div className="bg-gray-700 rounded-md px-3 py-2 text-sm">
+          {JSON.stringify(data)}
         </div>
       </div>
     </div>
