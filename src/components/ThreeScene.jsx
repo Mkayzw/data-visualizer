@@ -1,37 +1,44 @@
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Text } from '@react-three/drei';
-import { useMemo, useRef, useState } from 'react';
-import * as THREE from 'three';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import { useSpring, animated } from '@react-spring/three';
+import * as THREE from 'three';
 
 // Interactive Node component with animations
-function Node({ position, value, isActive, isHighlighted, isComparing, type = 'default', onClick }) {
+function Node({ index, value, isActive, isHighlighted, isComparing, onClick }) {
   const [hovered, setHovered] = useState(false);
   const meshRef = useRef();
+  const [position, setPosition] = useState([index * 3, 0, 0]);
   
-  // Animation springs
-  const { scale, color } = useSpring({
+  useEffect(() => {
+    setPosition([index * 3, 0, 0]);
+  }, [index]);
+
+  const { scale, color, pos } = useSpring({
     scale: hovered ? 1.2 : 1,
     color: isActive ? '#ff4444' : 
            isHighlighted ? '#44ff44' : 
            isComparing ? '#ffff44' : 
            hovered ? '#66aaff' : '#4444ff',
-    config: { tension: 150, friction: 10 }
+    pos: position,
+    config: {
+      mass: 1,
+      tension: 120,
+      friction: 14,
+      precision: 0.001
+    }
   });
 
-  const nodeGeometry = type === 'array' ? 
-    <boxGeometry args={[1, 1, 1]} /> :
-    <sphereGeometry args={[0.5, 32, 32]} />;
-
   return (
-    <animated.group position={position} scale={scale}>
+    <animated.group position={pos}>
       <animated.mesh
         ref={meshRef}
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
         onClick={onClick}
+        scale={scale}
       >
-        {nodeGeometry}
+        <boxGeometry args={[1, 1, 1]} />
         <animated.meshStandardMaterial 
           color={color}
           metalness={0.5}
@@ -39,8 +46,8 @@ function Node({ position, value, isActive, isHighlighted, isComparing, type = 'd
         />
       </animated.mesh>
       <Text
-        position={[0, 0.8, 0]}
-        fontSize={0.4}
+        position={[0, 1.2, 0]}
+        fontSize={0.5}
         color="white"
         anchorX="center"
         anchorY="bottom"
@@ -51,170 +58,6 @@ function Node({ position, value, isActive, isHighlighted, isComparing, type = 'd
   );
 }
 
-// Animated Edge component
-function Edge({ start, end, isHighlighted, isDirected = false }) {
-  const { color } = useSpring({
-    color: isHighlighted ? '#44ff44' : '#666666',
-    config: { tension: 150, friction: 10 }
-  });
-
-  const points = useMemo(() => {
-    const startVec = new THREE.Vector3(...start);
-    const endVec = new THREE.Vector3(...end);
-    const points = [startVec, endVec];
-    
-    if (isDirected) {
-      const direction = endVec.clone().sub(startVec).normalize();
-      const arrowLength = 0.3;
-      const arrowPosition = endVec.clone().sub(direction.multiplyScalar(arrowLength));
-      points.push(arrowPosition);
-    }
-    
-    return points;
-  }, [start, end, isDirected]);
-
-  return (
-    <line>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={points.length}
-          array={new Float32Array(points.flatMap(p => [p.x, p.y, p.z]))}
-          itemSize={3}
-        />
-      </bufferGeometry>
-      <lineBasicMaterial color={color} />
-    </line>
-  );
-}
-
-// LinkedList visualization
-function LinkedListStructure({ data, visualState, onNodeClick }) {
-  const elements = useMemo(() => {
-    return data.map((value, index) => {
-      const position = [index * 3 - (data.length - 1) * 1.5, 0, 0];
-      return {
-        position,
-        value,
-        isActive: visualState.activeNodes.includes(index),
-        isHighlighted: visualState.highlightedNodes.includes(index),
-        next: index < data.length - 1 ? index + 1 : null
-      };
-    });
-  }, [data, visualState]);
-
-  return (
-    <group>
-      {elements.map((element, index) => (
-        <group key={index}>
-          <Node 
-            {...element} 
-            onClick={() => onNodeClick?.(index)}
-          />
-          {element.next !== null && (
-            <Edge 
-              start={element.position}
-              end={elements[element.next].position}
-              isDirected={true}
-              isHighlighted={visualState.highlightedNodes.includes(index)}
-            />
-          )}
-        </group>
-      ))}
-    </group>
-  );
-}
-
-// Binary Tree visualization
-function TreeStructure({ data, visualState }) {
-  const elements = useMemo(() => {
-    return data.map((value, index) => {
-      const level = Math.floor(Math.log2(index + 1));
-      const position = [
-        (index - Math.pow(2, level) + 1) * 3,
-        -level * 2,
-        0
-      ];
-      return {
-        position,
-        value,
-        isActive: visualState.activeNodes.includes(index),
-        isHighlighted: visualState.highlightedNodes.includes(index),
-        leftChild: 2 * index + 1 < data.length ? 2 * index + 1 : null,
-        rightChild: 2 * index + 2 < data.length ? 2 * index + 2 : null
-      };
-    });
-  }, [data, visualState]);
-
-  return (
-    <group position={[0, 4, 0]}>
-      {elements.map((element, index) => (
-        <group key={index}>
-          <Node {...element} />
-          {element.leftChild !== null && (
-            <Edge 
-              start={element.position}
-              end={elements[element.leftChild].position}
-              isHighlighted={visualState.highlightedNodes.includes(index)}
-            />
-          )}
-          {element.rightChild !== null && (
-            <Edge 
-              start={element.position}
-              end={elements[element.rightChild].position}
-              isHighlighted={visualState.highlightedNodes.includes(index)}
-            />
-          )}
-        </group>
-      ))}
-    </group>
-  );
-}
-
-// Graph visualization
-function GraphStructure({ data, visualState }) {
-  const elements = useMemo(() => {
-    return data.map((node, index) => {
-      const angle = (index / data.length) * Math.PI * 2;
-      const radius = 4;
-      const position = [
-        Math.cos(angle) * radius,
-        Math.sin(angle) * radius,
-        0
-      ];
-      return {
-        position,
-        value: node.value,
-        isActive: visualState.activeNodes.includes(index),
-        isHighlighted: visualState.highlightedNodes.includes(index),
-        connections: node.connections || []
-      };
-    });
-  }, [data, visualState]);
-
-  return (
-    <group>
-      {elements.map((element, index) => (
-        <group key={index}>
-          <Node {...element} />
-          {element.connections.map((targetIndex, i) => (
-            <Edge 
-              key={`${index}-${targetIndex}-${i}`}
-              start={element.position}
-              end={elements[targetIndex].position}
-              isDirected={true}
-              isHighlighted={
-                visualState.highlightedNodes.includes(index) && 
-                visualState.highlightedNodes.includes(targetIndex)
-              }
-            />
-          ))}
-        </group>
-      ))}
-    </group>
-  );
-}
-
 // Main ThreeScene component
 function ThreeScene({ 
   structureType, 
@@ -222,73 +65,45 @@ function ThreeScene({
   visualState,
   onNodeClick 
 }) {
-  // Camera settings
-  const cameraSettings = useMemo(() => {
-    switch (structureType) {
-      case 'array':
-        return { position: [0, 5, 10], fov: 50 };
-      case 'linkedList':
-        return { position: [0, 5, 15], fov: 50 };
-      case 'tree':
-        return { position: [0, 5, 20], fov: 60 };
-      case 'graph':
-        return { position: [0, 0, 15], fov: 50 };
-      default:
-        return { position: [0, 5, 10], fov: 50 };
-    }
-  }, [structureType]);
+  // Get current array state from visualization state
+  const currentData = useMemo(() => {
+    return visualState?.currentArray?.length > 0 ? visualState.currentArray : data;
+  }, [data, visualState]);
 
-  // Structure selection
-  const StructureComponent = useMemo(() => {
-    switch (structureType) {
-      case 'array':
-        return (
-          <group position={[-(data.length - 1) * 1.5, 0, 0]}>
-            {data.map((value, index) => (
-              <Node
-                key={index}
-                position={[index * 3, 0, 0]}
-                value={value}
-                type="array"
-                isActive={visualState.activeNodes.includes(index)}
-                isHighlighted={visualState.highlightedNodes.includes(index)}
-                isComparing={visualState.comparisons.includes(index)}
-                onClick={() => onNodeClick?.(index)}
-              />
-            ))}
-          </group>
-        );
-      case 'linkedList':
-        return (
-          <LinkedListStructure
-            data={data}
-            visualState={visualState}
-            onNodeClick={onNodeClick}
-          />
-        );
-      case 'tree':
-        return (
-          <TreeStructure
-            data={data}
-            visualState={visualState}
-          />
-        );
-      case 'graph':
-        return (
-          <GraphStructure
-            data={data}
-            visualState={visualState}
-          />
-        );
-      default:
-        return null;
-    }
-  }, [structureType, data, visualState, onNodeClick]);
+  // Find index of original value in current array
+  const getIndexInCurrent = (value) => {
+    return currentData.indexOf(value);
+  };
+
+  // Array visualization
+  const ArrayVisualization = useMemo(() => {
+    const centerOffset = ((data.length - 1) * 3) / 2;
+    
+    return (
+      <group position={[-centerOffset, 0, 0]}>
+        {data.map((value, originalIndex) => {
+          const currentIndex = getIndexInCurrent(value);
+          return (
+            <Node
+              key={value} // Use value as key to maintain identity
+              index={currentIndex}
+              value={value}
+              isActive={visualState?.activeNodes?.includes(currentIndex)}
+              isHighlighted={visualState?.highlightedNodes?.includes(currentIndex)}
+              isComparing={visualState?.comparisons?.includes(currentIndex)}
+              onClick={() => onNodeClick?.(currentIndex)}
+            />
+          );
+        })}
+      </group>
+    );
+  }, [data, currentData, visualState, onNodeClick]);
 
   return (
     <Canvas
       camera={{
-        ...cameraSettings,
+        position: [0, 5, 15],
+        fov: 50,
         near: 0.1,
         far: 1000,
       }}
@@ -306,7 +121,7 @@ function ThreeScene({
         maxDistance={50}
       />
       
-      {StructureComponent}
+      {structureType === 'array' && ArrayVisualization}
       
       <gridHelper args={[20, 20, '#444444', '#222222']} />
       <axesHelper args={[5]} />

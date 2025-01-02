@@ -6,13 +6,14 @@ function Dashboard({
   structureType, 
   data, 
   algorithm, 
-  visualState,
+  visualState: initialVisualState,
   onDataModification 
 }) {
   const [steps, setSteps] = useState([])
   const [currentStep, setCurrentStep] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [playbackSpeed, setPlaybackSpeed] = useState(1)
+  const [currentVisualState, setCurrentVisualState] = useState(initialVisualState)
 
   // Initialize algorithm steps when algorithm changes
   useEffect(() => {
@@ -21,8 +22,19 @@ function Dashboard({
       setSteps(newSteps)
       setCurrentStep(0)
       setIsPlaying(false)
+      setCurrentVisualState(newSteps[0] || initialVisualState)
     }
-  }, [algorithm, data, structureType])
+  }, [algorithm, data, structureType, initialVisualState])
+
+  // Update visual state when step changes
+  useEffect(() => {
+    if (steps.length > 0 && currentStep < steps.length) {
+      setCurrentVisualState(steps[currentStep])
+      if (steps[currentStep].currentArray) {
+        onDataModification(steps[currentStep].currentArray)
+      }
+    }
+  }, [currentStep, steps, onDataModification])
 
   // Automatic playback
   useEffect(() => {
@@ -42,12 +54,19 @@ function Dashboard({
     console.log('Node clicked:', index)
   }, [])
 
+  // Reset visualization
+  const handleReset = () => {
+    setCurrentStep(0)
+    setIsPlaying(false)
+    onDataModification(data)
+  }
+
   return (
     <div className="relative h-full">
       <ThreeScene
         structureType={structureType}
         data={data}
-        visualState={steps[currentStep] || visualState}
+        visualState={currentVisualState}
         onNodeClick={handleNodeClick}
       />
       
@@ -88,9 +107,8 @@ function Dashboard({
           {/* Control Buttons */}
           <div className="flex space-x-2">
             <button
-              onClick={() => setCurrentStep(0)}
+              onClick={handleReset}
               className="px-3 py-1 bg-gray-700 rounded hover:bg-gray-600"
-              disabled={currentStep === 0}
             >
               ⏮️ Reset
             </button>

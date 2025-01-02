@@ -1,9 +1,10 @@
 // Helper function to create visualization steps
-const createStep = (activeNodes = [], highlightedNodes = [], comparisons = [], description = '') => ({
+const createStep = (activeNodes = [], highlightedNodes = [], comparisons = [], description = '', currentArray = []) => ({
   activeNodes,
   highlightedNodes,
   comparisons,
-  description
+  description,
+  currentArray
 });
 
 // Array Algorithms
@@ -11,32 +12,68 @@ const bubbleSort = (array) => {
   const steps = [];
   const arr = [...array];
   
+  // Initial state
+  steps.push(createStep(
+    [],
+    [],
+    [],
+    'Starting bubble sort',
+    [...arr]
+  ));
+
   for (let i = 0; i < arr.length; i++) {
     for (let j = 0; j < arr.length - i - 1; j++) {
+      // Comparing elements
       steps.push(createStep(
         [j, j + 1],
         [],
         [j, j + 1],
-        `Comparing ${arr[j]} and ${arr[j + 1]}`
+        `Comparing ${arr[j]} and ${arr[j + 1]}`,
+        [...arr]
       ));
       
       if (arr[j] > arr[j + 1]) {
+        // Before swap state
         steps.push(createStep(
           [j, j + 1],
           [],
           [],
-          `Swapping ${arr[j]} and ${arr[j + 1]}`
+          `Will swap ${arr[j]} and ${arr[j + 1]}`,
+          [...arr]
         ));
+        
+        // Perform the swap
         [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];
+        
+        // After swap state
+        steps.push(createStep(
+          [j, j + 1],
+          [],
+          [],
+          `Swapped ${arr[j + 1]} and ${arr[j]}`,
+          [...arr]
+        ));
       }
     }
+    
+    // Mark element as sorted
     steps.push(createStep(
       [],
-      [arr.length - i - 1],
+      Array.from({ length: arr.length - i }, (_, idx) => arr.length - 1 - idx),
       [],
-      `Element ${arr[arr.length - i - 1]} is in its final position`
+      `Elements from index ${arr.length - i - 1} onwards are sorted`,
+      [...arr]
     ));
   }
+  
+  // Final state
+  steps.push(createStep(
+    [],
+    Array.from({ length: arr.length }, (_, i) => i),
+    [],
+    'Array is sorted',
+    [...arr]
+  ));
   
   return steps;
 };
@@ -51,7 +88,8 @@ const quickSort = (array) => {
       [high],
       [],
       [],
-      `Choosing pivot: ${pivot}`
+      `Choosing pivot: ${pivot}`,
+      [...arr]
     ));
     
     let i = low - 1;
@@ -61,41 +99,104 @@ const quickSort = (array) => {
         [j],
         [high],
         [j, high],
-        `Comparing ${arr[j]} with pivot ${pivot}`
+        `Comparing ${arr[j]} with pivot ${pivot}`,
+        [...arr]
       ));
       
       if (arr[j] <= pivot) {
         i++;
-        steps.push(createStep(
-          [i, j],
-          [high],
-          [],
-          `Swapping ${arr[i]} and ${arr[j]}`
-        ));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
+        if (i !== j) {
+          // Before swap state
+          steps.push(createStep(
+            [i, j],
+            [high],
+            [],
+            `Will swap ${arr[i]} and ${arr[j]}`,
+            [...arr]
+          ));
+          
+          // Perform swap
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+          
+          // After swap state
+          steps.push(createStep(
+            [i, j],
+            [high],
+            [],
+            `Swapped ${arr[j]} and ${arr[i]}`,
+            [...arr]
+          ));
+        }
       }
     }
     
+    // Before placing pivot
     steps.push(createStep(
       [i + 1, high],
       [],
       [],
-      `Placing pivot in its final position`
+      `Will place pivot ${pivot} at position ${i + 1}`,
+      [...arr]
     ));
+    
+    // Place pivot
     [arr[i + 1], arr[high]] = [arr[high], arr[i + 1]];
+    
+    // After placing pivot
+    steps.push(createStep(
+      [i + 1],
+      [],
+      [],
+      `Placed pivot ${pivot} at its final position`,
+      [...arr]
+    ));
     
     return i + 1;
   };
   
   const quickSortHelper = (low, high) => {
     if (low < high) {
+      steps.push(createStep(
+        [],
+        [],
+        [low, high],
+        `Sorting subarray from index ${low} to ${high}`,
+        [...arr]
+      ));
+      
       const pi = partition(low, high);
+      
+      steps.push(createStep(
+        [],
+        [pi],
+        [],
+        `Partition complete. Element ${arr[pi]} is in its final position`,
+        [...arr]
+      ));
+      
       quickSortHelper(low, pi - 1);
       quickSortHelper(pi + 1, high);
     }
   };
   
+  steps.push(createStep(
+    [],
+    [],
+    [],
+    'Starting quicksort',
+    [...arr]
+  ));
+  
   quickSortHelper(0, arr.length - 1);
+  
+  steps.push(createStep(
+    [],
+    Array.from({ length: arr.length }, (_, i) => i),
+    [],
+    'Array is sorted',
+    [...arr]
+  ));
+  
   return steps;
 };
 
